@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="peer_ecomm_ms/peer_ecomm_ms.csproj" />
+  <Project Path="peer_ecomm_ms.Tests/peer_ecomm_ms.Tests.csproj" />
+</Solution>

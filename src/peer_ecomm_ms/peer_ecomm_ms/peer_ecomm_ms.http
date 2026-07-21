@@ -1,0 +1,6 @@
+@peer_ecomm_ms_HostAddress = http://localhost:5296
+
+GET {{peer_ecomm_ms_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

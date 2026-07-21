@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://localhost:7019";
+const API_BASE_URL = "http://localhost:5296";
 //const API_BASE_URL = "https://7fxmddn4-7019.inc1.devtunnels.ms";
 
 // Map API Role IDs to your UI Role Strings

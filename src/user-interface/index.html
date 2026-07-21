@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer Online Shopping</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%9D%3C/text%3E%3C/svg%3E">
+    <!-- Link to your external CSS file -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+	<!-- ================= AUTHENTICATION VIEW (full-bleed split screen) ================= -->
+	<div id="view-auth" class="view-section active">
+		<div class="auth-container">
+
+			<div class="auth-brand-panel">
+				<div class="auth-brand-logo"><span class="logo-icon">🤝</span> Peer Online Shopping</div>
+				<h1>Buy and sell smarter,<br>together.</h1>
+				<p>A community marketplace built for peers, by peers. Track every order from cart to doorstep.</p>
+			</div>
+
+			<div class="auth-form-panel">
+				<!-- Login Form -->
+				<div class="card-panel auth-panel" id="login-panel">
+					<h2>Welcome back</h2>
+					<form onsubmit="handleAuth(event, 'login')">
+						<div class="form-group">
+							<label>Username</label>
+							<input type="text" id="login-username" required placeholder="Enter username">
+						</div>
+						<div class="form-group">
+							<label>Password</label>
+							<input type="password" id="login-password" required placeholder="Enter password">
+						</div>
+						<button type="submit" class="btn-primary btn-large">Login</button>
+					</form>
+					<p style="text-align: center; margin-top: 15px;">
+						Don't have an account? <a href="#" onclick="toggleAuthMode('register')">Register here</a>
+					</p>
+				</div>
+
+				<!-- Register Form -->
+				<div class="card-panel auth-panel" id="register-panel" style="display: none;">
+					<h2>Create your account</h2>
+					<form onsubmit="handleAuth(event, 'register')">
+						<div class="form-group">
+							<label>Username</label>
+							<input type="text" id="register-username" required placeholder="Choose a username">
+						</div>
+						<div class="form-group">
+							<label>Password</label>
+							<input type="password" id="register-password" required placeholder="Choose a password">
+						</div>
+						<button type="submit" class="btn-primary btn-large">Register</button>
+					</form>
+					<p style="text-align: center; margin-top: 15px;">
+						Already have an account? <a href="#" onclick="toggleAuthMode('login')">Login here</a>
+					</p>
+				</div>
+			</div>
+
+		</div>
+	</div>
+
+	<header id="main-header" style="display: none;">
+		<div class="logo">
+			<span class="logo-icon">🤝</span> Peer Online Shopping
+		</div>
+
+		<div class="search-bar">
+			<input type="text" id="search-input" placeholder="Search for products, brands and more..." oninput="filterProducts()" onkeydown="if(event.key==='Enter'){event.preventDefault();filterProducts();}">
+			<button onclick="filterProducts()">Search</button>
+		</div>
+
+		<nav>
+			<button class="nav-link" id="tab-home" onclick="switchTab('home')">Home</button>
+			<button class="nav-link" id="tab-orders" onclick="switchTab('orders')">My Orders</button>
+			<button class="nav-link cart-nav" id="tab-cart" onclick="switchTab('cart')">
+				Cart <span class="badge" id="cart-count">0</span>
+			</button>
+			<button class="nav-link btn-danger" onclick="logout()" style="margin-left: 15px;">Logout</button>
+		</nav>
+	</header>
+
+    <main class="container">
+        <!-- ================= HOME VIEW ================= -->
+        <div id="view-home" class="view-section active">
+            <!-- Hero Banner -->
+            <div class="hero-banner">
+                <div class="hero-content">
+                    <div class="hero-marquee">
+                        <div class="hero-marquee-track">
+                            <span><span class="live-dot"></span>LIVE NOW &nbsp;•&nbsp; EXCLUSIVE FLASH SALE &nbsp;•&nbsp; 55% OFF EVERYTHING &nbsp;•&nbsp; LIMITED TIME ONLY &nbsp;•&nbsp;</span>
+                            <span aria-hidden="true"><span class="live-dot"></span>LIVE NOW &nbsp;•&nbsp; EXCLUSIVE FLASH SALE &nbsp;•&nbsp; 55% OFF EVERYTHING &nbsp;•&nbsp; LIMITED TIME ONLY &nbsp;•&nbsp;</span>
+                        </div>
+                    </div>
+                    <h2>Your Next Upgrade Starts Here.</h2>
+                    <p>Trending picks from top brands, curated for the Peer community.</p>
+                </div>
+                <div class="hero-visual">🛍️</div>
+            </div>
+
+            <!-- Product Grid -->
+            <h3 class="section-title">Trending Now</h3>
+            <div id="product-grid" class="product-grid">
+                <!-- Products injected by script.js -->
+            </div>
+        </div>
+
+        <!-- ================= CART VIEW ================= -->
+        <div id="view-cart" class="view-section">
+            <div class="split-layout">
+                <div class="card-panel cart-items-panel">
+                    <h2>Review Your Cart</h2>
+                    <div id="cart-items-container">
+                        <!-- Cart items injected here -->
+                    </div>
+                    <div class="cart-total-row">
+                        <h3>Total Amount:</h3>
+                        <h3 class="total-price">$<span id="cart-total">0.00</span></h3>
+                    </div>
+                </div>
+
+                <div class="card-panel checkout-panel">
+                    <h2>Shipping Details</h2>
+					<form id="shipping-form" onsubmit="placeOrder(event)">
+						<div class="form-group">
+							<label>Full Name</label>
+							<input type="text" id="name" required placeholder="John Doe">
+						</div>
+						<div class="form-group">
+							<label>Shipping Address</label>
+							<textarea id="address" rows="4" required placeholder="123 Main St, Apt 4B"></textarea>
+						</div>
+						<!-- Added Payment Method -->
+						<div class="form-group">
+							<label>Payment Method</label>
+							<select id="payment-method" class="admin-status-select" style="width: 100%;">
+								<option value="COD">Cash on Delivery</option>
+								<option value="ONLINE">Online Payment</option>
+							</select>
+						</div>
+						<button type="submit" class="btn-primary btn-large" id="order-submit-btn">Confirm & Place Order</button>
+					</form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= MY ORDERS VIEW ================= -->
+		<div id="view-orders" class="view-section">
+			<div class="card-panel">
+				<h2>Your Order History</h2>
+		
+				<!-- Admin & Backend Filters (Hidden by default for clients) -->
+				<div id="admin-filters" style="display: none; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding: 15px; background: var(--bg-color); border-radius: 8px;">
+					<div style="flex: 1; min-width: 150px;">
+						<label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">User ID</label>
+						<input type="number" id="filter-user-id" placeholder="Enter User ID" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px;">
+					</div>
+					<div style="flex: 1; min-width: 150px;">
+						<label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Order Status</label>
+						<select id="filter-status-id" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:4px;">
+							<option value="2">New Order - COD</option>
+							<option value="3">New Order - Paid</option>
+							<option value="4">Packaged In Warehouse</option>
+							<option value="9">In Transit</option>
+							<option value="6">Cancellation Requested</option>
+							<option value="7">Cancellation to be paid</option>
+							<option value="8">Cancelled</option>
+							<option value="5">Delivered</option>
+						</select>
+					</div>
+					<div style="display: flex; align-items: flex-end; gap: 10px;">
+						<button class="btn-primary" onclick="applyAdminFilters()">Filter</button>
+						<button class="btn-outline" onclick="clearAdminFilters()">Clear</button>
+					</div>
+				</div>
+		
+				<div id="orders-container">
+					<!-- Orders injected here -->
+				</div>
+			</div>
+		</div>
+
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+	<!-- Track Order Modal -->
+	<div id="trackOrderModal" class="modal-overlay">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h2>Track Order</h2>
+				<span class="close-modal" onclick="closeTrackModal()">&times;</span>
+			</div>
+			<div id="trackOrderBody" class="modal-body">
+				<!-- Dynamic timeline content will be injected here -->
+			</div>
+		</div>
+	</div>
+
+    <!-- Link to your external JavaScript file -->
+    <script src="scripts/script.js"></script>
+</body>
+</html>

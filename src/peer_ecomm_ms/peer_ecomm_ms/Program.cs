@@ -40,3 +40,7 @@ app.UseCors("AllowAll");
 app.UseStaticFiles();
 app.MapControllers();
 app.Run();
+
+// Exposes the top-level-statement entry point as a public type so
+// WebApplicationFactory<Program> can boot the real app in integration tests.
+public partial class Program { }

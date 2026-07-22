@@ -62,11 +62,18 @@ src/
       Models/DTOs/                 # Response DTOs (OrderDetailsDto, ProductDetailsDto, StatusDetailsDto, UserDetailsDto)
       DBA/ECommDbContext.cs        # EF Core DbContext
       Program.cs                   # App startup / DI wiring
-    peer_ecomm_ms.Tests/           # xUnit test project (Controllers + Services)
+    peer_ecomm_ms.Tests/            # xUnit test project
+      Controllers/                  # Unit tests — controller methods called directly
+      Services/                     # Unit tests — AuthenticationService, OrderDetailsService,
+                                     #   OrderStatusUpdateService (background job sweep)
+      Integration/                  # Integration tests — real HTTP through WebApplicationFactory
+      TestHelpers/                  # DbContextFactory (unit), ApiWebApplicationFactory (integration)
   user-interface/
     index.html                     # Single-page markup (auth, home, cart, orders views)
     css/styles.css                 # "Peer" dark marketplace theme
     scripts/script.js              # All frontend logic — auth, cart, checkout, order tracking, admin queue
+scripts/
+  pre-deploy-check.ps1             # One-command build + full test suite + optional live boot check
 ```
 
 ## Prerequisites
@@ -104,14 +111,50 @@ npx serve src/user-interface
 
 It expects the API to be reachable at `http://localhost:5296` — this is hardcoded as `API_BASE_URL` at the top of `src/user-interface/scripts/script.js`. Update that constant if the API is running elsewhere.
 
-## Running Tests
+## Testing
+
+The test project has two layers, and a single script ties them into one pre-deployment gate.
+
+### Layer 1 — Unit tests (`Controllers/`, `Services/`)
+
+Call controller/service methods directly against an isolated EF Core in-memory `ECommDbContext` (see `TestHelpers/DbContextFactory.cs`). Fast, and exercises business rules and validation in isolation: every endpoint's validation branches, the cancellation guard, password hashing, DTO enrichment, and — since the last update — the background job's sweep logic itself (`OrderStatusUpdateServiceTests.cs`), which calls `OrderStatusUpdateService.SweepPlacedOrdersAsync()` directly instead of waiting on the real 5-minute timer.
+
+### Layer 2 — Integration tests (`Integration/`)
+
+Boot the **real** ASP.NET Core pipeline — actual routing, dependency injection, JSON serialization, CORS — via `WebApplicationFactory<Program>` (`TestHelpers/ApiWebApplicationFactory.cs`), swapping only the database for an isolated, disposable EF Core in-memory instance so nothing ever touches the real `eCommDB.db` file. Requests go over real `HttpClient` calls, so these catch wiring regressions (a broken route, a renamed JSON property, a DI registration mistake) that calling a controller method directly cannot. `EndToEndCheckoutFlowTests.cs` runs a full customer journey — register, login, browse, add to cart, checkout, trigger the background sweep, view order history — tying every module together in one test.
+
+Run everything:
 
 ```powershell
 cd src/peer_ecomm_ms/peer_ecomm_ms.Tests
 dotnet test
 ```
 
-Tests use EF Core's in-memory provider (see `TestHelpers/DbContextFactory.cs`), so no database file is required to run the suite.
+### Pre-deployment check (run this after any change, before deploying)
+
+`scripts/pre-deploy-check.ps1` is the single command to run after changing **any** functionality or module — a controller, a service, a model, the background job — to confirm the whole application still works before pushing or deploying. It builds the whole solution, runs the full test suite above, and exits non-zero the moment anything fails, so it can also gate a CI/CD pipeline.
+
+```powershell
+# Build + full unit/integration test suite (fast, no real DB touched)
+./scripts/pre-deploy-check.ps1
+
+# Same, plus boot the real API against the real configured DB and hit a
+# read-only endpoint — catches things only a real boot can catch, like the
+# hardcoded connection string in Program.cs pointing at the wrong path.
+./scripts/pre-deploy-check.ps1 -LiveSmoke
+```
+
+Sample output:
+
+```
+==> Building solution (Debug)
+    [PASS] Solution builds cleanly.
+
+==> Running full test suite (unit, background job, integration)
+    [PASS] All unit, background-job, and integration tests passed.
+
+RESULT: PASSED  (26.6s) - safe to deploy.
+```
 
 ## Domain Model
 
@@ -335,7 +378,7 @@ sequenceDiagram
     OC->>DB: UPDATE StatusId = 10, OrderedOn = now
     OC-->>FE: 200 OK
 
-    loop every 5 seconds (Timer)
+    loop every 5 minutes (Timer)
         BG->>DB: SELECT * FROM Orders WHERE StatusId = 10
         BG->>DB: UPDATE StatusId = (PaymentMode == 0 ? 2 : 3)
     end
@@ -350,11 +393,11 @@ sequenceDiagram
 `OrderStatusUpdateService` (`Services/OrderStatusUpdateService.cs`) is a `BackgroundService` that:
 
 1. Runs once immediately on application startup.
-2. Then runs on a repeating `Timer` — **every 5 seconds** in the current code (`TimeSpan.FromSeconds(5)` for both the due-time and the period).
+2. Then runs on a repeating `Timer` — every 5 minutes (`TimeSpan.FromMinutes(5)` for both the due-time and the period), matching the assignment spec.
 3. On each run, finds all orders with `StatusId == 10` (Placed) and advances them: `StatusId = 2` (New Order - COD) if `PaymentMode == 0`, otherwise `StatusId = 3` (New Order - Prepaid).
 4. Wraps each run in try/catch so a failure is logged and doesn't crash the host or block the next scheduled run.
 
-> **Note:** the original assignment spec calls for a 5-*minute* sweep; the implementation currently uses 5 *seconds*. The behavior is safe either way (each run is idempotent — a second sweep simply finds nothing left at status 10), but the interval should be revisited (`TimeSpan.FromMinutes(5)`) before this is treated as production-representative of the intended cadence.
+The sweep logic itself lives in `OrderStatusUpdateService.SweepPlacedOrdersAsync(ECommDbContext, CancellationToken)` — a plain static method with no dependency on the timer, so it can (and is) unit-tested directly. See *Testing* below.
 
 ## Known Limitations / Assumptions
 
@@ -363,4 +406,3 @@ sequenceDiagram
 - No authentication middleware guards the API — `/users/authenticate` returns a success payload but no token/session is issued or checked on subsequent requests; the `roleId`-based UI in the *Roles & Access* section above is a client-side convenience only, not enforcement.
 - No foreign keys are declared in `ECommDbContext` — `Orders.UserId`/`ProductId`/`StatusId` are unconstrained at the database layer, so orphaned references are possible.
 - Order writes use a plain read-modify-write with no optimistic concurrency (no version/rowversion column) — two concurrent updates to the same order (e.g. an admin advancing status while a client cancels, or the background sweep racing a manual update) can silently overwrite each other.
-- The background sweep interval in code (5 seconds) doesn't match the 5-minute cadence described in the original assignment brief — see *Background Job* above.

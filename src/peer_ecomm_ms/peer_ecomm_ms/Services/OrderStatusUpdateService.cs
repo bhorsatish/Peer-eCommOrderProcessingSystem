@@ -55,24 +55,11 @@ namespace eComm_ms.Services
 
                 try
                 {
-                    // Find all orders with status 10
-                    var ordersToUpdate = await dbContext.Orders
-                        .Where(o => o.StatusId == 10)
-                        .ToListAsync(stoppingToken);
+                    var updatedCount = await SweepPlacedOrdersAsync(dbContext, stoppingToken);
 
-                    if (ordersToUpdate.Count > 0)
+                    if (updatedCount > 0)
                     {
-                        _logger.LogInformation($"Found {ordersToUpdate.Count} orders with status 10. Processing...");
-
-                        foreach (var order in ordersToUpdate)
-                        {
-                            // Set status to 2 if PaymentMode is 0, otherwise set to 3
-                            order.StatusId = order.PaymentMode == 0 ? 2 : 3;
-                            order.LastUpdatedOn = DateTime.UtcNow.ToString("o");
-                        }
-
-                        await dbContext.SaveChangesAsync(stoppingToken);
-                        _logger.LogInformation($"Successfully updated {ordersToUpdate.Count} orders.");
+                        _logger.LogInformation($"Successfully updated {updatedCount} orders.");
                     }
                     else
                     {
@@ -85,6 +72,35 @@ namespace eComm_ms.Services
                     throw;
                 }
             }
+        }
+
+        /// <summary>
+        /// Finds every order still at status 10 (Placed) and advances it to 2 (New Order - COD)
+        /// or 3 (New Order - Prepaid) based on PaymentMode. Pulled out of the timer/scope plumbing
+        /// above so it can be unit-tested directly against any ECommDbContext (including the
+        /// EF Core InMemory provider) without waiting on a real timer.
+        /// </summary>
+        /// <returns>The number of orders transitioned.</returns>
+        public static async Task<int> SweepPlacedOrdersAsync(ECommDbContext dbContext, CancellationToken cancellationToken = default)
+        {
+            var ordersToUpdate = await dbContext.Orders
+                .Where(o => o.StatusId == 10)
+                .ToListAsync(cancellationToken);
+
+            if (ordersToUpdate.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (var order in ordersToUpdate)
+            {
+                // Set status to 2 if PaymentMode is 0, otherwise set to 3
+                order.StatusId = order.PaymentMode == 0 ? 2 : 3;
+                order.LastUpdatedOn = DateTime.UtcNow.ToString("o");
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return ordersToUpdate.Count;
         }
 
         public override async Task StopAsync(CancellationToken cancellationToken)
